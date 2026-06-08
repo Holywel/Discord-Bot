@@ -5,6 +5,19 @@ from bs4 import BeautifulSoup
 import urllib.parse
 import re
 import os
+from http.server import BaseHTTPRequestHandler, HTTPServer
+import threading
+
+class KeepAliveHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.send_header('Content-type', 'text/html')
+        self.end_headers()
+        self.wfile.write(b"Bot 7/24 Aktif!")
+
+def run_keep_alive():
+    server = HTTPServer(('0.0.0.0', 10000), KeepAliveHandler)
+    server.serve_forever()
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -111,4 +124,7 @@ async def deger_sorgula(ctx, *, oyuncu_ismi: str):
     
     await ctx.send(embed=embed)
 
-bot.run(os.getenv('DISCORD_TOKEN'))
+if __name__ == "__main__":
+    threading.Thread(target=run_keep_alive, daemon=True).start()
+    bot.run(os.getenv('DISCORD_TOKEN'))
+
