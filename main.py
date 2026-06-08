@@ -7,6 +7,7 @@ import re
 import os
 from http.server import BaseHTTPRequestHandler, HTTPServer
 import threading
+import time
 
 class KeepAliveHandler(BaseHTTPRequestHandler):
     def do_GET(self):
@@ -23,16 +24,23 @@ intents = discord.Intents.default()
 intents.message_content = True
 bot = commands.Bot(command_prefix="!", intents=intents)
 
+# Engelleri aşmak için tarayıcı kimliklerini güçlendirdik
 HEADERS = {
-    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+    'Accept-Language': 'tr-TR,tr;q=0.9,en-US;q=0.8,en;q=0.7',
+    'Cache-Control': 'no-cache',
+    'Pragma': 'no-cache'
 }
 
 def get_player_data(player_name):
     try:
+        session = requests.Session()
         search_query = urllib.parse.quote_plus(f"{player_name} transfermarkt")
+        # DuckDuckGo engeline karşı alternatif hızlı arama motoru rotası
         search_url = f"https://html.duckduckgo.com/html/?q={search_query}"
         
-        search_response = requests.get(search_url, headers=HEADERS)
+        search_response = session.get(search_url, headers=HEADERS, timeout=10)
         if search_response.status_code != 200:
             return None
             
@@ -51,7 +59,8 @@ def get_player_data(player_name):
         if not player_profile_url:
             return None
             
-        response = requests.get(player_profile_url, headers=HEADERS)
+        time.sleep(1) # Siteye çok hızlı yüklenip ban yememek için 1 saniye duraklama
+        response = session.get(player_profile_url, headers=HEADERS, timeout=10)
         if response.status_code != 200:
             return None
             
@@ -101,12 +110,12 @@ async def on_ready():
 @bot.command(name="deger")
 async def deger_sorgula(ctx, *, oyuncu_ismi: str):
     proper_name = oyuncu_ismi.title()
-    await ctx.send(f"🔍 `{proper_name}` Transfermarkt üzerinde aranıyor, lütfen bekleyin...")
+    status_message = await ctx.send(f"🔍 `{proper_name}` Transfermarkt üzerinde aranıyor, lütfen bekleyin...")
     
     player_info = get_player_data(oyuncu_ismi)
     
     if not player_info:
-        await ctx.send("❌ Oyuncu bulunamadı veya veri çekme hatası oluştu. Lütfen ismi doğru yazdığınızdan emin olun.")
+        await status_message.edit(content=f"❌ `{proper_name}` bulunamadı veya sunucu bağlantı engeline takıldı. Lütfen biraz sonra tekrar deneyin.")
         return
         
     embed = discord.Embed(
@@ -122,9 +131,9 @@ async def deger_sorgula(ctx, *, oyuncu_ismi: str):
     embed.add_field(name="💰 Piyasa Değeri", value=f"**{player_info['value']}**", inline=False)
     embed.add_field(name="🛡️ Güncel Kulüp", value=f"**{player_info['club']}**", inline=False)
     
-    await ctx.send(embed=embed)
+    await status_message.delete() # Bekleyin mesajını siler
+    await ctx.send(embed=embed) # Gerçek kartı gönderir
 
 if __name__ == "__main__":
     threading.Thread(target=run_keep_alive, daemon=True).start()
     bot.run(os.getenv('DISCORD_TOKEN'))
-
